@@ -1,0 +1,100 @@
+name: concourse
+
+# replace with `bosh status --uuid`
+director_uuid: (((REPLACE ME)))
+
+releases:
+- name: concourse
+  version: latest
+- name: garden-runc
+  version: latest
+- name: minio-dist
+  version: latest
+
+stemcells:
+- alias: trusty
+  os: ubuntu-trusty
+  version: latest
+
+instance_groups:
+- name: web
+  instances: 1
+  # replace with a VM type from your BOSH Director's cloud config
+  vm_type: default-vm
+  stemcell: trusty
+  azs: [z1]
+  networks: [{name: default-network}]
+  jobs:
+  - name: atc
+    release: concourse
+    properties:
+      external_url: (((REPLACE ME)))
+
+      # replace with username/password, or configure GitHub auth
+      basic_auth_username: (((REPLACE ME)))
+      basic_auth_password: (((REPLACE ME)))
+
+      postgresql_database: &atc_db atc
+  - name: tsa
+    release: concourse
+    properties: {}
+
+- name: db
+  instances: 1
+  # replace with a VM type from your BOSH Director's cloud config
+  vm_type: default-vm
+  stemcell: trusty
+  # replace with a disk type from your BOSH Director's cloud config
+  persistent_disk_type: default-disk
+  azs: [z1]
+  networks: [{name: default-network}]
+  jobs:
+  - name: postgresql
+    release: concourse
+    properties:
+      databases:
+      - name: *atc_db
+        # make up a role and password
+        role: (((REPLACE ME)))
+        password: (((REPLACE ME)))
+
+- name: worker
+  instances: 2
+  vm_type: default-vm
+  stemcell: trusty
+  azs: [z1]
+  networks: [{name: default-network}]
+  jobs:
+  - name: groundcrew
+    release: concourse
+    properties: {}
+  - name: baggageclaim
+    release: concourse
+    properties: {}
+  - name: garden
+    release: garden-runc
+    properties:
+      garden:
+        listen_network: tcp
+        listen_address: 0.0.0.0:7777
+
+- name: minio-server
+  instances: 4
+  vm_type: default-vm
+  stemcell: trusty
+  azs: [z1]
+  networks: [{name: default-network}]
+  jobs:
+  - name: minio-server
+    release: minio-dist
+    properties:
+      minio:
+        access_key: (((REPLACE ME)))
+        secret_key: (((REPLACE ME)))
+
+update:
+  canaries: 2
+  max_in_flight: 2
+  serial: false
+  canary_watch_time: 1000-60000
+  update_watch_time: 1000-60000
